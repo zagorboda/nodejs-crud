@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pizza</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Pizza menu</h1>
+    <p>Menu:</p>
+    <div style="background:#eeeeee; border:1px solid #cccccc; padding:5px 10px;" id="menu_list">
+    </div>
+    <br>
+
+    <h3>Create order</h3>
+    <p>Type comma separated pizza names from list (ex: Margarita, Vegan, Vegan, Spicy)</p>
+    <input type="text" id="make_order_input"> 
+    <button id="make_order_btn" class="btn btn-primary">Make order</button>
+    <p id="make_order_output"></p>
+    <br>
+
+    <h3>Delete order</h3>
+    <p>Type order id</p>
+    <input type="text" id="delete_order_input"> 
+    <button id="delete_order_btn" class="btn btn-danger">Delete order</button>
+    <p id="delete_order_output"></p><br>
+
+
+    <h3>Update order</h3>
+    <span>New order info: </span><input type="text" id="update_order_input">
+    <span>Order id: </span><input type="text" id="update_order_id_input">
+    <button id="update_order_btn" class="btn btn-warning">Update order</button>
+    <p id="update_order_output"></p>
+    <br>
+
+    <h3>Show order info</h3>
+    <p>Type order id</p>
+    <input type="text" id="get_order_input"> 
+    <button id="get_order_btn" class="btn btn-info">Show order info</button>
+    <p id="get_order_output"></p>
+    <br>
+
+    <h3>List all orders</h3>
+    <button id="list_order_btn" class="btn btn-success">List orders</button>
+    <div id="list_order_output"></div>
+
+    <br>
+
+</div>
+
+</body>
+
+
+<script>
+    window.onload = function () {
+        fetch("/get_menu").then(response => response.json()).then(data => {
+            const menu_list = document.getElementById("menu_list");
+            for (const pizza of data) {
+                let p = document.createElement('p');
+                p.innerHTML = pizza;
+                menu_list.appendChild(p);
+            }
+
+        });
+
+        const get_order_btn = document.getElementById("get_order_btn");
+        const get_order_input = document.getElementById("get_order_input");
+        function get_order() {
+            let user_data = JSON.parse('{}');
+            const order_id = get_order_input.value;
+            const options = {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza/${order_id}`, options).then(response => response.text()).then(data => {
+                const get_order_output = document.getElementById("get_order_output");
+                get_order_output.innerHTML = data;
+            });
+        }
+        get_order_btn.addEventListener("click", get_order);
+
+        const make_order_btn = document.getElementById("make_order_btn");
+        const make_order_input = document.getElementById("make_order_input");
+        function make_order() {
+            let user_data = JSON.parse('{}');
+            user_data.order = make_order_input.value;
+            const options = {
+                method: "POST",
+                body: JSON.stringify(user_data),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch("/pizza", options).then(response => response.text()).then(data => {
+                const make_order_output = document.getElementById("make_order_output");
+                make_order_output.innerHTML = data;
+            });
+        }
+        make_order_btn.addEventListener("click", make_order);
+
+        const delete_order_btn = document.getElementById("delete_order_btn");
+        const delete_order_input = document.getElementById("delete_order_input");
+        function delete_order() {
+            const order_id = delete_order_input.value;
+            const options = {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza/${order_id}`, options).then(response => response.text()).then(data => {
+                const delete_order_output = document.getElementById("delete_order_output");
+                delete_order_output.innerHTML = data;
+            });
+        }
+        delete_order_btn.addEventListener("click", delete_order);
+
+        const list_order_btn = document.getElementById("list_order_btn");
+        function list_order() {
+            const options = {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza`, options).then(response => response.text()).then(data => {
+                let pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(JSON.parse(data), undefined, 2);
+
+                const list_order_output = document.getElementById("list_order_output");
+                list_order_output.innerHTML = '';
+                list_order_output.appendChild(pre);
+            });
+        }
+        list_order_btn.addEventListener("click", list_order);
+
+        const update_order_btn = document.getElementById("update_order_btn");
+        const update_order_input = document.getElementById("update_order_input");
+        const update_order_id_input = document.getElementById("update_order_id_input");
+        function update_order() {
+            let user_data = JSON.parse('{}');
+            user_data.new_order = update_order_input.value;
+            console.log(user_data);
+            const options = {
+                method: "PATCH",
+                body: JSON.stringify(user_data),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza/${update_order_id_input.value}`, options).then(response => response.text()).then(data => {
+                const update_order_output = document.getElementById("update_order_output");
+                update_order_output.innerHTML = data;
+            });
+        }
+        update_order_btn.addEventListener("click", update_order);
+
+    }
+
+
+</script>
+</html>
