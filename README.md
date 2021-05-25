@@ -1,6 +1,6 @@
 # Basic NodeJS app
 
-Basic CRUD app using nodejs, express, mongodb.
+Basic CRUD app using nodejs, express, mongodb, mongoose.
 
 ## Demo
 https://www.zagorboda.me/node-crud/

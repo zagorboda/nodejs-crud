@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Admin panel</h1>
+
+    <a href="/">Main page</a>
+
+    <h3>Menu</h3>
+    <div style="padding:5px 10px;" id="menu_list">
+    </div>
+    <input type="text" id="add_menu_item_input"> <button id="create_menu_item" class="btn btn-success">Add item</button>
+    <p id="menu_action_output"></p>
+    <br>
+
+    <h3>Orders</h3>
+    <p id="order_action_output"></p>
+    <input type="text" id="make_order_input"> <button id="make_order_btn" class="btn btn-success">Add order</button>
+    <div style="padding:5px 10px;" id="order_list">
+    </div>
+
+</div>
+
+</body>
+
+<style>
+    td {
+        padding: 5px;
+    }
+
+    tr {
+        padding: 5px;
+    }
+</style>
+
+<script>
+    window.onload = function () {
+        const menu_action_output = document.getElementById("menu_action_output");
+
+        function list_order() {
+            const options = {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza`, options).then(response => response.text()).then(data => {
+                const list_order_output = document.getElementById("order_list");
+                list_order_output.innerHTML = "";
+                let table = document.createElement('table');
+                data = JSON.parse(data);
+
+                for (const item of data) {
+                    const tr_pizza = document.createElement('tr');
+                    tr_pizza.id = `tr_${item._id}`;
+
+                    const td_pizza = document.createElement('td');
+                    td_pizza.innerHTML = item.order;
+
+                    const td_del_btn = document.createElement('td');
+                    const del_btn = document.createElement('button');
+                    del_btn.value = item._id;
+                    del_btn.textContent = "Delete";
+                    del_btn.addEventListener("click", delete_order);
+                    del_btn.className = "btn btn-danger";
+                    td_del_btn.appendChild(del_btn);
+
+                    const td_update_show_btn = document.createElement('td');
+                    const show_update_btn = document.createElement('button');
+                    show_update_btn.value = item._id
+                    show_update_btn.textContent = "Update"
+                    show_update_btn.addEventListener("click", show_update_order)
+                    show_update_btn.className = "btn btn-warning"
+                    td_update_show_btn.appendChild(show_update_btn);
+
+                    tr_pizza.appendChild(td_pizza);
+                    tr_pizza.appendChild(td_del_btn);
+                    tr_pizza.appendChild(td_update_show_btn);
+
+                    table.appendChild(tr_pizza);
+
+                    const tr_update = document.createElement('tr');
+                    tr_update.id = `tr_update_${item._id}`;
+                    const td_update = document.createElement('td');
+                    const td_update_btn = document.createElement('td');
+                    const update_btn = document.createElement('button');
+                    const update_input = document.createElement('input');
+                    update_btn.value = item._id
+                    update_btn.textContent = "Update"
+                    update_btn.addEventListener("click", update_order)
+                    update_btn.className = "btn btn-primary"
+                    update_input.id = `input_update_${item._id}`
+                    td_update.appendChild(update_input);
+                    td_update_btn.appendChild(update_btn);
+
+                    tr_update.style.display = "none";
+                    tr_update.appendChild(td_update);
+                    tr_update.appendChild(td_update_btn);
+                    table.appendChild(tr_update);
+
+                }
+
+                list_order_output.appendChild(table);
+            });
+        }
+        list_order();
+
+        function render_menu(){
+            fetch("/menu").then(response => response.json()).then(menu => {
+                const menu_list = document.getElementById("menu_list");
+                menu_list.innerHTML = "";
+                let table = document.createElement('table');
+                for (const pizza of menu) {
+                    let tr = document.createElement('tr');
+                    tr.id = `tr_${pizza._id}`
+
+                    let td_pizza = document.createElement('td');
+                    td_pizza.innerHTML = pizza.pizza;
+
+                    let td_del_btn = document.createElement('td');
+                    let del_btn = document.createElement('button');
+                    del_btn.value = pizza._id
+                    del_btn.textContent = "Delete"
+                    del_btn.addEventListener("click", delete_menu_element)
+                    del_btn.className = "btn btn-danger"
+
+                    td_del_btn.appendChild(del_btn);
+                    tr.appendChild(td_pizza);
+                    tr.appendChild(td_del_btn);
+
+                    table.appendChild(tr);
+                }
+                menu_list.appendChild(table);
+
+            });
+        }
+        render_menu();
+
+        function delete_menu_element() {
+            const item_id = this.value;
+            const options = {
+                method: "DELETE",
+                body: JSON.stringify({
+                    item_id: item_id
+                }),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/menu`, options).then(response => response.text()).then(data => {
+                menu_action_output.innerHTML = data;
+                const tr = document.getElementById(`tr_${this.value}`);
+                tr.innerHTML = 'Item deleted';
+            });
+        }
+
+        function show_update_order(){
+            const tr_id = `tr_update_${this.value}`;
+            const tr = document.getElementById(tr_id);
+            tr.style.display = "block";
+        }
+
+        const create_menu_item = document.getElementById("create_menu_item");
+        const add_menu_item_input = document.getElementById("add_menu_item_input");
+        function add_menu_item() {
+            let user_data = JSON.parse('{}');
+            user_data.item = add_menu_item_input.value;
+            const options = {
+                method: "POST",
+                body: JSON.stringify(user_data),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch("/menu", options).then(response => response.text()).then(data => {
+                menu_action_output.innerHTML = data;
+                render_menu();
+            });
+        }
+        create_menu_item.addEventListener("click", add_menu_item);
+
+        const make_order_btn = document.getElementById("make_order_btn");
+        const make_order_input = document.getElementById("make_order_input");
+        function make_order() {
+            let user_data = JSON.parse('{}');
+            user_data.order = make_order_input.value;
+            const options = {
+                method: "POST",
+                body: JSON.stringify(user_data),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch("/pizza", options).then(async response => {
+                const data = await response.text();
+                const make_order_output = document.getElementById("order_action_output");
+                make_order_output.innerHTML = data;
+                if (response.status === 200){
+                    list_order();
+                }
+            });
+        }
+        make_order_btn.addEventListener("click", make_order);
+
+        function delete_order() {
+            const order_id = this.value;
+            const options = {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza/${order_id}`, options).then(response => response.text()).then(data => {
+                const order_action_output = document.getElementById("order_action_output");
+                const order_tr = document.getElementById(`tr_${this.value}`);
+                order_action_output.innerHTML = data;
+                order_tr.innerHTML = 'Order deleted';
+            });
+        }
+
+        function update_order() {
+            let user_data = JSON.parse('{}');
+            const order_id = this.value;
+            user_data.new_order = document.getElementById(`input_update_${order_id}`).value;
+            const options = {
+                method: "PATCH",
+                body: JSON.stringify(user_data),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            };
+            fetch(`/pizza/${order_id}`, options).then(response => response.text()).then(data => {
+                const order_action_output = document.getElementById("order_action_output");
+                order_action_output.innerHTML = data;
+            });
+        }
+    }
+
+</script>
+</html>

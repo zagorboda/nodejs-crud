@@ -10,6 +10,9 @@
 
 <div class="container">
     <h1>Pizza menu</h1>
+
+    <p><a href="admin">Admin</a></p>
+
     <p>Menu:</p>
     <div style="background:#eeeeee; border:1px solid #cccccc; padding:5px 10px;" id="menu_list">
     </div>
@@ -56,11 +59,11 @@
 
 <script>
     window.onload = function () {
-        fetch("/get_menu").then(response => response.json()).then(data => {
+        fetch("/menu").then(response => response.json()).then(data => {
             const menu_list = document.getElementById("menu_list");
             for (const pizza of data) {
                 let p = document.createElement('p');
-                p.innerHTML = pizza;
+                p.innerHTML = pizza.pizza;
                 menu_list.appendChild(p);
             }
 

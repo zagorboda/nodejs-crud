@@ -1,19 +1,19 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
 const bodyParser = require('body-parser');
-const util = require('util');
-const MongoClient = require('mongodb').MongoClient;
-const ObjectId = require("mongodb").ObjectId;
 const dotenv = require('dotenv');
+const mongoose = require("mongoose");
+const path = require('path');
 
 dotenv.config();
 
 const app = express();
 const port = 8000;
 const dbUrl = process.env.MONGO_URL;
+const ObjectID = require("mongodb").ObjectID
+const models = require('./models');
 
-const readFile = util.promisify(fs.readFile);
+const Order = models.Order;
+const Menu = models.Menu;
 
 app.set('view engine', 'pug');
 app.use("/", express.static("public"));
@@ -21,26 +21,17 @@ app.use(bodyParser.json());
 app.use(bodyParser.text());
 
 
-async function get_pizza_order_by_id(db, order_id){
-    let status_code;
-    let message;
-    let object;
+async function get_pizza_order_by_id(order_id){
+    let status_code, message, object;
 
-    if(typeof order_id == "undefined"){
+    if (! ObjectID.isValid(order_id)){
         status_code = 400;
-        message = "Invalid json. Should contain id key."
+        message = "Invalid ID."
         object = null;
         return [status_code, object, message];
     }
 
-    if (!order_id){
-        status_code = 400;
-        message = "Invalid data. ID must be positive integer."
-        object = null;
-        return [status_code, object, message];
-    }
-
-    const order = await app.locals.db.findOne({_id: ObjectId(order_id)});
+    const order = await Order.findById(order_id);
 
     if(!order){
         status_code = 404;
@@ -55,7 +46,7 @@ async function get_pizza_order_by_id(db, order_id){
     return [status_code, order, message];
 }
 
-function validate_new_order(order, menu){
+async function validate_new_order(order, menu){
     let status_code;
     let message;
 
@@ -87,62 +78,119 @@ function validate_new_order(order, menu){
 
 
 async function get_menu() {
-    return new Promise(function(resolve, reject) {
-        const collection = app.locals.menu;
-
-        collection.find({}).toArray(function (err, items) {
-            if (err) {
-                reject(err);
-            } else {
-                let menu = [];
-                for (const pizza of items) {
-                    menu.push(pizza.name);
-                }
-                resolve(menu);
-            }
-        });
-    });
+    let menu = await Menu.find({}).lean();
+    menu = menu.map(doc => doc.pizza);
+    return menu;
 }
 
 
-app.route("/get_menu")
+app.route("/menu")
     .get(async (request, response) => {
-        const menu = await get_menu();
+        const menu = await Menu.find({}).lean();
+
         response.status(200).json(menu);
     })
+    .delete(async (request, response) => {
+        const menu_pizza_id = request.body.item_id;
+
+        if (! ObjectID.isValid(menu_pizza_id)){
+            response.status(400);
+            return response.send("Invalid ID");
+        }
+
+        try {
+            const deleted_order = await Menu.findByIdAndDelete(menu_pizza_id);
+
+            if (deleted_order){
+                response.status(200);
+                return response.send((`Menu position ${menu_pizza_id}: (${deleted_order.pizza}) deleted`));
+            }
+
+            response.status(404);
+            return response.send((`Menu position with id: ${menu_pizza_id}: does not exists`));
+
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while deleting`);
+        }
+
+    })
+    .post(async (request, response) => {
+        let menu = await get_menu();
+
+        let new_item_name = request.body.item;
+
+        if (!new_item_name) {
+            response.status(400);
+            return response.send(`Invalid data`);
+        }
+
+        if (menu.includes(new_item_name)){
+            return response.send(`Item (${new_item_name}) already present in menu`);
+        } else {
+            new_item_name = new_item_name.trim();
+            const new_item = {pizza: new_item_name}
+            try {
+                const new_document = await Menu.create(new_item);
+                return response.send(`Item ${new_item_name} with id ${new_document.id} created`);
+            } catch (error) {
+                console.log(error);
+                response.status(500);
+                return response.send(`Some error occurred while creating item`);
+            }
+        }
+
+
+
+    });
 
 app.route("/pizza")
     .get(async (request, response) => {
-        const orders = await app.locals.db.find({}).toArray();
+        try{
+            const res = await Order.find({}).lean();
 
-        response.send(orders);
+            return response.send(res);
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while retrieving orders`);
+        }
     })
     .post(async (request, response) => {
         const body = request.body;
 
         let menu = await get_menu();
 
-        let [status_code, order, message] = validate_new_order(body.order, menu);
+        let [status_code, order, message] = await validate_new_order(body.order, menu);
 
         response.status(status_code);
         if (!order){
             return response.send(message);
         }
 
-        const new_order = {"order": order}
+        const new_order = {"order": order};
 
-        app.locals.db.insertOne(new_order, function (err, res) {
-            if (err) throw err;
-            return response.send(`Create order ${res.ops[0]._id}`);
-        })
-
+        try {
+            const new_document = await Order.create(new_order);
+            return response.send(`Order with id ${new_document.id} was created`);
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while creating order`);
+        }
     });
-
-
 
 app.route("/pizza/:id")
     .get(async (request, response) => {
-        let [status_code, document, message] = await get_pizza_order_by_id(app.locals.db, request.params.id);
+        let status_code, document, message;
+        try {
+            [status_code, document, message] = await get_pizza_order_by_id(request.params.id);
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while retrieving order`);
+        }
 
         response.status(status_code);
         if (document){
@@ -153,33 +201,50 @@ app.route("/pizza/:id")
 
     })
     .delete(async (request, response) => {
-        const db = app.locals.db
         const order_id = request.params.id;
 
-        const deleted_order = await db.findOneAndDelete( { "_id" : ObjectId(order_id) } );
-
-        if (deleted_order.value){
-            response.status(200);
-            return response.send((`Order ${order_id}: (${deleted_order.value.order}) deleted`));
+        if (! ObjectID.isValid(order_id)){
+            response.status(400);
+            return response.send("Invalid ID");
         }
-        response.status(404);
-        return response.send((`Order ${order_id} does not exists`));
 
+        try {
+            const deleted_order = await Order.findByIdAndDelete(order_id);
+
+            if (deleted_order){
+                response.status(200);
+                return response.send((`Order ${order_id}: (${deleted_order.order}) deleted`));
+            }
+
+            response.status(404);
+            return response.send((`Order ${order_id} does not exists`));
+
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while deleting order`);
+        }
 
     })
     .patch(async (request, response) => {
         const body = request.body;
 
-        let new_status_code, new_message;
+        let new_status_code, new_message, status_code, order, message;
         let order_id = request.params.id;
         let new_order = body.new_order;
-
         let menu = await get_menu();
 
-        let [status_code, order, message] = await get_pizza_order_by_id(app.locals.db, order_id);
-        if (!order){
-            response.status(status_code);
-            return response.send(message);
+        try {
+            [status_code, order, message] = await get_pizza_order_by_id(order_id);
+
+            if (!order){
+                response.status(status_code);
+                return response.send(message);
+            }
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while retrieving order`);
         }
 
         [new_status_code, new_order, new_message] = await validate_new_order(new_order, menu);
@@ -188,25 +253,24 @@ app.route("/pizza/:id")
             return response.send(new_message);
         }
 
-        const new_order_values = {$set: {order:  new_order}};
-        app.locals.db.updateOne(order, new_order_values);
-        response.send(`Object ${order_id}: (${order.order}) was updated to (${new_order})`);
+        try{
+            const updated_order = await Order.findByIdAndUpdate(order_id, {order: new_order}, {new: true}).lean();
+
+            return response.send(`Order ${order_id}: ${order.order} changed to ${updated_order.order}`);
+        } catch (error) {
+            console.log(error);
+            response.status(500);
+            return response.send(`Some error occurred while retrieving order`);
+        }
 
     });
 
 app.listen(port, async () => {
     console.log('Server start');
-    await MongoClient.connect(dbUrl, async (err, client) => {
-        if (err) console.log(err);
-
-        console.log("Connect to db");
-        app.locals.db = await client.db('pizza').collection('orders');
-        app.locals.menu = await client.db('pizza').collection('menu');
-
-        process.on('SIGINT', () => {
-            console.log("Disconnect db");
-            client.close();
-            process.exit();
-        });
-    });
+    await mongoose.connect(dbUrl, {useNewUrlParser: true});
 });
+
+app.route("/admin")
+    .get(async (request, response) => {
+        response.sendFile(path.join(__dirname, 'public/admin.html'));
+    });
